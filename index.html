@@ -28,344 +28,6 @@
     <div id="gameContainer"></div>
 
     <script>
-        // 게임 설정
-        const config = {
-            type: Phaser.AUTO,
-            width: 1200,
-            height: 900,
-            parent: 'gameContainer',
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 0 },
-                    debug: false
-                }
-            },
-            scene: [TitleScene, StageScene,         GameScene.prototype.updateEnemies = function() {
-            // 모든 적 업데이트
-            this.enemies.getChildren().forEach(enemy => {
-                // 플레이어 방향 계산
-                const dx = this.player.x - enemy.x;
-                const dy = this.player.y - enemy.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // 이동 방향 정규화
-                let dirX = dx / distance;
-                let dirY = dy / distance;
-                
-                // 경로 탐색 관련 처리 (장애물 회피 등)
-                if (enemy.pathFinding) {
-                    // 간단한 경로 탐색 (정교한 알고리즘은 구현 복잡성 때문에 생략)
-                    // 실제 게임에서는 A* 등의 알고리즘 사용 권장
-                    const ray = this.raycaster.createRay({
-                        origin: { x: enemy.x, y: enemy.y },
-                        direction: { x: dirX, y: dirY }
-                    });
-                    
-                    // 직선 경로에 장애물이 있는지 확인
-                    const hit = ray.cast();
-                    
-                    if (hit) {
-                        // 장애물이 있으면 방향 약간 변경
-                        dirX += (Math.random() * 0.4) - 0.2;
-                        dirY += (Math.random() * 0.4) - 0.2;
-                        
-                        // 방향 다시 정규화
-                        const newDist = Math.sqrt(dirX * dirX + dirY * dirY);
-                        dirX /= newDist;
-                        dirY /= newDist;
-                    }
-                }
-                
-                // 속도 적용
-                enemy.setVelocity(dirX * enemy.speed * 60, dirY * enemy.speed * 60);
-                
-                // Shooter 유형 적은 미사일 발사
-                if (enemy.type === 'shooter') {
-                    const currentTime = this.time.now;
-                    if (currentTime - enemy.lastShotTime > 3000) {
-                        // 플레이어와의 거리가 800 이내일 때만 발사
-                        if (distance < 800) {
-                            this.fireEnemyMissile(enemy);
-                            enemy.lastShotTime = currentTime;
-                        }
-                    }
-                }
-            });
-        };
-
-        GameScene.prototype.fireMissile = function() {
-            // 플레이어 위치에서 미사일 발사
-            const missile = this.physics.add.sprite(this.player.x, this.player.y, 'missile');
-            
-            // 미사일 텍스처가 없으면 생성
-            if (!this.textures.exists('missile')) {
-                const graphics = this.add.graphics();
-                graphics.fillStyle(0xffff00, 1);
-                graphics.fillCircle(0, 0, 5);
-                graphics.generateTexture('missile', 10, 10);
-                graphics.clear();
-            }
-            
-            // 미사일 설정
-            missile.setSize(10, 10);
-            
-            // 미사일 속도 7
-            const missileSpeed = 7 * 60;
-            
-            // 70% 확률로 적을 추적하는 미사일
-            if (Math.random() < 0.7 && this.enemies.getLength() > 0) {
-                // 가장 가까운 적 찾기
-                let closestEnemy = null;
-                let closestDistance = Infinity;
-                
-                this.enemies.getChildren().forEach(enemy => {
-                    const dx = enemy.x - this.player.x;
-                    const dy = enemy.y - this.player.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < closestDistance) {
-                        closestDistance = distance;
-                        closestEnemy = enemy;
-                    }
-                });
-                
-                // 추적 대상이 있으면 해당 방향으로 발사
-                if (closestEnemy) {
-                    // 타겟 방향 계산
-                    const dx = closestEnemy.x - this.player.x;
-                    const dy = closestEnemy.y - this.player.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    // 방향 정규화해서 속도 적용
-                    missile.setVelocity((dx / distance) * missileSpeed, (dy / distance) * missileSpeed);
-                    
-                    // 추적 대상 설정 (업데이트에서 사용)
-                    missile.target = closestEnemy;
-                    missile.isTracking = true;
-                } else {
-                    // 대상이 없으면 랜덤 방향
-                    const angle = Math.random() * Math.PI * 2;
-                    missile.setVelocity(Math.cos(angle) * missileSpeed, Math.sin(angle) * missileSpeed);
-                }
-            } else {
-                // 랜덤 방향 발사
-                const angle = Math.random() * Math.PI * 2;
-                missile.setVelocity(Math.cos(angle) * missileSpeed, Math.sin(angle) * missileSpeed);
-            }
-            
-            // 미사일 그룹에 추가
-            this.missiles.add(missile);
-            
-            // 5초 후 자동 소멸
-            this.time.delayedCall(5000, () => {
-                if (missile.active) {
-                    missile.destroy();
-                }
-            });
-        };
-
-        GameScene.prototype.fireEnemyMissile = function(enemy) {
-            // 적 위치에서 미사일 발사
-            const missile = this.physics.add.sprite(enemy.x, enemy.y, 'enemyMissile');
-            
-            // 적 미사일 텍스처가 없으면 생성
-            if (!this.textures.exists('enemyMissile')) {
-                const graphics = this.add.graphics();
-                graphics.fillStyle(0xff3300, 1);
-                graphics.fillCircle(0, 0, 5);
-                graphics.generateTexture('enemyMissile', 10, 10);
-                graphics.clear();
-            }
-            
-            // 미사일 설정
-            missile.setSize(10, 10);
-            
-            // 미사일 속도 7
-            const missileSpeed = 7 * 60;
-            
-            // 플레이어 방향으로 발사
-            const dx = this.player.x - enemy.x;
-            const dy = this.player.y - enemy.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            missile.setVelocity((dx / distance) * missileSpeed, (dy / distance) * missileSpeed);
-            
-            // 적 미사일 그룹에 추가
-            this.enemyMissiles.add(missile);
-            
-            // 5초 후 자동 소멸
-            this.time.delayedCall(5000, () => {
-                if (missile.active) {
-                    missile.destroy();
-                }
-            });
-        };
-
-        GameScene.prototype.playerTakeDamage = function() {
-            // 무적 상태면 데미지 없음
-            if (this.player.invincible) return;
-            
-            // 하트 감소
-            this.player.hearts--;
-            
-            // 하트 디스플레이 업데이트
-            this.heartsText.setText('❤️'.repeat(this.player.hearts));
-            
-            // 플레이어 하트 개수 전역 변수에 저장
-            playerHearts = this.player.hearts;
-            
-            // 하트가 0이면 게임 오버
-            if (this.player.hearts <= 0) {
-                this.endGame(false);
-                return;
-            }
-            
-            // 무적 상태 설정 (3초)
-            this.player.invincible = true;
-            this.player.invincibleTime = this.time.now + 3000;
-            
-            // 깜빡임 효과
-            if (this.player.blinkTimer) {
-                this.player.blinkTimer.remove();
-            }
-            
-            this.player.blinkTimer = this.time.addEvent({
-                delay: 100,
-                callback: () => {
-                    this.player.visible = !this.player.visible;
-                },
-                loop: true
-            });
-            
-            // 무적 시간 종료 후 깜빡임 중지
-            this.time.delayedCall(3000, () => {
-                if (this.player.blinkTimer) {
-                    this.player.blinkTimer.remove();
-                    this.player.blinkTimer = null;
-                }
-                this.player.visible = true;
-                this.player.invincible = false;
-            });
-        };
-
-        GameScene.prototype.updatePlayerInvincibility = function(time) {
-            // 무적 상태 업데이트
-            if (this.player.invincible && time > this.player.invincibleTime) {
-                this.player.invincible = false;
-                this.player.visible = true;
-                
-                if (this.player.blinkTimer) {
-                    this.player.blinkTimer.remove();
-                    this.player.blinkTimer = null;
-                }
-            }
-        };
-
-        GameScene.prototype.updateDebugInfo = function() {
-            // 디버그 정보 갱신
-            this.debugText.setText(
-                `Player: ${Math.round(this.player.x)},${Math.round(this.player.y)} | ` +
-                `Camera: ${Math.round(this.cameras.main.scrollX)},${Math.round(this.cameras.main.scrollY)} | ` +
-                `Obstacles: ${this.obstacles.getLength()} | ` +
-                `Enemies: ${this.enemies.getLength()} | ` +
-                `Missiles: ${this.missiles.getLength()}`
-            );
-        };
-
-        GameScene.prototype.nextStage = function() {
-            // 게임 타이머 중지
-            this.gameTimer.remove();
-            this.enemyTimer.remove();
-            this.missileTimer.remove();
-            
-            // 스테이지 증가
-            currentStage++;
-            
-            // 다음 스테이지 씬으로 전환
-            this.gameActive = false;
-            this.scene.start('StageScene');
-        };
-
-        GameScene.prototype.endGame = function(survived = false) {
-            // 게임 타이머 중지
-            this.gameTimer.remove();
-            this.enemyTimer.remove();
-            this.missileTimer.remove();
-            
-            // 게임 오버 씬으로 전환 (생존 여부 전달)
-            this.gameActive = false;
-            this.scene.start('GameOverScene', { survived: survived });
-            
-            // 스테이지 초기화 (게임 오버시)
-            if (!survived) {
-                currentStage = 1;
-                playerHearts = 3;
-            }
-        };
-
-        // 게임 오버 씬
-        function GameOverScene() {
-            Phaser.Scene.call(this, { key: 'GameOverScene' });
-        }
-
-        GameOverScene.prototype = Object.create(Phaser.Scene.prototype);
-        GameOverScene.prototype.constructor = GameOverScene;
-
-        GameOverScene.prototype.init = function(data) {
-            this.survived = data.survived;
-        };
-
-        GameOverScene.prototype.create = function() {
-            // 배경 생성
-            this.add.rectangle(0, 0, 1200, 900, 0x220000).setOrigin(0);
-            
-            // 게임 오버 메시지
-            const gameOverMessage = this.survived ? "SURVIVED!" : "GAME OVER";
-            const messageColor = this.survived ? "#00ff00" : "#ff0000";
-            
-            this.add.text(600, 300, gameOverMessage, { 
-                fontFamily: 'Arial', 
-                fontSize: 48, 
-                color: messageColor 
-            }).setOrigin(0.5);
-            
-            // 다시 시작 버튼
-            const playAgainButton = this.add.text(600, 400, 'PLAY AGAIN', { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff',
-                backgroundColor: '#ff0000',
-                padding: { left: 30, right: 30, top: 15, bottom: 15 }
-            })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => playAgainButton.setBackgroundColor('#cc0000'))
-            .on('pointerout', () => playAgainButton.setBackgroundColor('#ff0000'))
-            .on('pointerdown', () => this.scene.start('StageScene'));
-            
-            // 종료 버튼
-            const exitButton = this.add.text(600, 500, 'EXIT', { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff',
-                backgroundColor: '#ff0000',
-                padding: { left: 30, right: 30, top: 15, bottom: 15 }
-            })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => exitButton.setBackgroundColor('#cc0000'))
-            .on('pointerout', () => exitButton.setBackgroundColor('#ff0000'))
-            .on('pointerdown', () => this.scene.start('TitleScene'));
-        };
-
-        // 게임 시작
-        const game = new Phaser.Game(config);
-    </script>
-</body>
-</html>Scene, GameOverScene]
-        };
-
         // 전역 게임 변수
         const MAP_WIDTH = 3600;
         const MAP_HEIGHT = 2700;
@@ -373,667 +35,943 @@
         let playerHearts = 3;
 
         // 타이틀 씬
-        function TitleScene() {
-            Phaser.Scene.call(this, { key: 'TitleScene' });
+        class TitleScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TitleScene' });
+            }
+
+            preload() {
+                // 필요한 이미지 로드
+                // 이미지가 없다면 단색 배경을 사용할 예정이므로 여기서는 실제 이미지 로드는 생략합니다.
+            }
+
+            create() {
+                // 배경 생성 (이미지 대신 단색 사각형)
+                this.add.rectangle(0, 0, 1200, 900, 0x222222).setOrigin(0);
+                
+                // 게임 제목
+                this.add.text(600, 300, 'ZOMBIE SURVIVAL', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 48, 
+                    color: '#ff0000' 
+                }).setOrigin(0.5);
+                
+                // 시작 버튼
+                const startButton = this.add.text(600, 400, 'START', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 24, 
+                    color: '#ffffff',
+                    backgroundColor: '#ff0000',
+                    padding: { left: 30, right: 30, top: 15, bottom: 15 }
+                })
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true })
+                .on('pointerover', () => startButton.setBackgroundColor('#cc0000'))
+                .on('pointerout', () => startButton.setBackgroundColor('#ff0000'))
+                .on('pointerdown', () => this.scene.start('StageScene'));
+                
+                // 종료 버튼
+                const exitButton = this.add.text(600, 500, 'EXIT', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 24, 
+                    color: '#ffffff',
+                    backgroundColor: '#ff0000',
+                    padding: { left: 30, right: 30, top: 15, bottom: 15 }
+                })
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true })
+                .on('pointerover', () => exitButton.setBackgroundColor('#cc0000'))
+                .on('pointerout', () => exitButton.setBackgroundColor('#ff0000'))
+                .on('pointerdown', () => {
+                    // 실제 게임에서는 창을 닫을 수 있음
+                    // 여기서는 알림만 표시
+                    alert('게임을 종료합니다.');
+                });
+            }
         }
-
-        TitleScene.prototype = Object.create(Phaser.Scene.prototype);
-        TitleScene.prototype.constructor = TitleScene;
-
-        TitleScene.prototype.preload = function() {
-            // 필요한 이미지 로드
-            this.load.image('titleBg', 'assets/titleBg.png');
-            // 이미지가 없다면 단색 배경을 사용할 예정이므로 여기서는 실제 이미지 로드는 생략합니다.
-        };
-
-        TitleScene.prototype.create = function() {
-            // 배경 생성 (이미지 대신 단색 사각형)
-            this.add.rectangle(0, 0, 1200, 900, 0x222222).setOrigin(0);
-            
-            // 게임 제목
-            this.add.text(600, 300, 'ZOMBIE SURVIVAL', { 
-                fontFamily: 'Arial', 
-                fontSize: 48, 
-                color: '#ff0000' 
-            }).setOrigin(0.5);
-            
-            // 시작 버튼
-            const startButton = this.add.text(600, 400, 'START', { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff',
-                backgroundColor: '#ff0000',
-                padding: { left: 30, right: 30, top: 15, bottom: 15 }
-            })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => startButton.setBackgroundColor('#cc0000'))
-            .on('pointerout', () => startButton.setBackgroundColor('#ff0000'))
-            .on('pointerdown', () => this.scene.start('StageScene'));
-            
-            // 종료 버튼
-            const exitButton = this.add.text(600, 500, 'EXIT', { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff',
-                backgroundColor: '#ff0000',
-                padding: { left: 30, right: 30, top: 15, bottom: 15 }
-            })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => exitButton.setBackgroundColor('#cc0000'))
-            .on('pointerout', () => exitButton.setBackgroundColor('#ff0000'))
-            .on('pointerdown', () => {
-                // 실제 게임에서는 창을 닫을 수 있음
-                // 여기서는 알림만 표시
-                alert('게임을 종료합니다.');
-            });
-        };
 
         // 스테이지 소개 씬
-        function StageScene() {
-            Phaser.Scene.call(this, { key: 'StageScene' });
-        }
-
-        StageScene.prototype = Object.create(Phaser.Scene.prototype);
-        StageScene.prototype.constructor = StageScene;
-
-        StageScene.prototype.preload = function() {
-            // 필요한 이미지 로드
-        };
-
-        StageScene.prototype.create = function() {
-            // 배경 생성
-            this.add.rectangle(0, 0, 1200, 900, 0x330000).setOrigin(0);
-            
-            // 스테이지 제목
-            this.add.text(600, 200, `STAGE ${currentStage}`, { 
-                fontFamily: 'Arial', 
-                fontSize: 60, 
-                color: '#ff0000',
-                stroke: '#ff0000',
-                strokeThickness: 2,
-                shadow: { offsetX: 0, offsetY: 0, color: '#ff0000', blur: 10, stroke: true, fill: true }
-            }).setOrigin(0.5);
-            
-            // 좀비 설명 제목
-            this.add.text(600, 300, 'Reported Zombies', { 
-                fontFamily: 'Arial', 
-                fontSize: 30, 
-                color: '#ffffff' 
-            }).setOrigin(0.5);
-            
-            // 좀비 정보 컨테이너
-            this.createEnemyInfo(300, 400, 'Basic Zombie', 0xff0000);
-            this.createEnemyInfo(500, 400, 'Fast Zombie', 0xff9900);
-            this.createEnemyInfo(700, 400, 'Shooter Zombie', 0xcc00cc);
-            this.createEnemyInfo(900, 400, 'Giant Zombie', 0x880000, '(HP: 3)');
-            
-            // GO 버튼
-            const goButton = this.add.text(600, 600, 'GO', { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff',
-                backgroundColor: '#ff3300',
-                padding: { left: 60, right: 60, top: 20, bottom: 20 }
-            })
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true })
-            .on('pointerover', () => goButton.setBackgroundColor('#cc2200'))
-            .on('pointerout', () => goButton.setBackgroundColor('#ff3300'))
-            .on('pointerdown', () => this.scene.start('GameScene'));
-        };
-
-        StageScene.prototype.createEnemyInfo = function(x, y, name, color, extraInfo = '') {
-            // 적 정보 표시 (이미지 대신 도형 사용)
-            const graphics = this.add.graphics();
-            graphics.fillStyle(0x222222, 1);
-            graphics.fillRect(x - 60, y - 60, 120, 120);
-            graphics.lineStyle(2, 0x666666, 1);
-            graphics.strokeRect(x - 60, y - 60, 120, 120);
-            
-            // 적 표현 (간단한 형태)
-            graphics.fillStyle(color, 1);
-            graphics.fillRect(x - 25, y - 10, 50, 50);
-            graphics.fillCircle(x, y - 25, 25);
-            
-            // 특별한 경우 추가적인 디테일
-            if (name === 'Fast Zombie') {
-                graphics.fillStyle(color, 0.3);
-                graphics.fillRect(x - 40, y, 25, 10);
-            } else if (name === 'Shooter Zombie') {
-                graphics.fillStyle(0x333333, 1);
-                graphics.fillRect(x + 25, y, 20, 5);
-            } else if (name === 'Giant Zombie') {
-                graphics.fillStyle(color, 1);
-                graphics.fillRect(x - 40, y, 15, 15);
-                graphics.fillRect(x + 25, y, 15, 15);
+        class StageScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'StageScene' });
             }
-            
-            // 적 이름
-            this.add.text(x, y + 75, name, { 
-                fontFamily: 'Arial', 
-                fontSize: 16, 
-                color: '#ffffff' 
-            }).setOrigin(0.5);
-            
-            // 추가 정보가 있다면 표시
-            if (extraInfo) {
-                this.add.text(x, y - 40, extraInfo, { 
+
+            preload() {
+                // 필요한 이미지 로드
+            }
+
+            create() {
+                // 배경 생성
+                this.add.rectangle(0, 0, 1200, 900, 0x330000).setOrigin(0);
+                
+                // 스테이지 제목
+                this.add.text(600, 200, `STAGE ${currentStage}`, { 
                     fontFamily: 'Arial', 
-                    fontSize: 12, 
+                    fontSize: 60, 
+                    color: '#ff0000',
+                    stroke: '#ff0000',
+                    strokeThickness: 2,
+                    shadow: { offsetX: 0, offsetY: 0, color: '#ff0000', blur: 10, stroke: true, fill: true }
+                }).setOrigin(0.5);
+                
+                // 좀비 설명 제목
+                this.add.text(600, 300, 'Reported Zombies', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 30, 
                     color: '#ffffff' 
                 }).setOrigin(0.5);
+                
+                // 좀비 정보 컨테이너
+                this.createEnemyInfo(300, 400, 'Basic Zombie', 0xff0000);
+                this.createEnemyInfo(500, 400, 'Fast Zombie', 0xff9900);
+                this.createEnemyInfo(700, 400, 'Shooter Zombie', 0xcc00cc);
+                this.createEnemyInfo(900, 400, 'Giant Zombie', 0x880000, '(HP: 3)');
+                
+                // GO 버튼
+                const goButton = this.add.text(600, 600, 'GO', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 24, 
+                    color: '#ffffff',
+                    backgroundColor: '#ff3300',
+                    padding: { left: 60, right: 60, top: 20, bottom: 20 }
+                })
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true })
+                .on('pointerover', () => goButton.setBackgroundColor('#cc2200'))
+                .on('pointerout', () => goButton.setBackgroundColor('#ff3300'))
+                .on('pointerdown', () => this.scene.start('GameScene'));
             }
-        };
 
-        // 게임 씬
-        function GameScene() {
-            Phaser.Scene.call(this, { key: 'GameScene' });
-            
-            // 게임 상태 변수
-            this.timeLeft = 60;
-            this.enemySpawned = false;
-            this.lastMissileTime = 0;
-            this.gameActive = true;
-            this.player = null;
-            this.missiles = null;
-            this.enemies = null;
-            this.enemyMissiles = null;
-            this.obstacles = null;
-            this.timerText = null;
-            this.stageText = null;
-            this.heartsText = null;
-        }
-
-        GameScene.prototype = Object.create(Phaser.Scene.prototype);
-        GameScene.prototype.constructor = GameScene;
-
-        GameScene.prototype.preload = function() {
-            // 게임에 필요한 리소스 로드
-        };
-
-        GameScene.prototype.create = function() {
-            // 맵 크기 설정
-            this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-            
-            // 배경 생성
-            this.add.rectangle(0, 0, MAP_WIDTH, MAP_HEIGHT, 0x111111).setOrigin(0);
-            
-            // 맵 격자 그리기
-            this.createMapGrid();
-            
-            // 장애물 생성
-            this.createObstacles();
-            
-            // 플레이어 생성
-            this.createPlayer();
-            
-            // 미사일, 적, 적 미사일 그룹 생성
-            this.missiles = this.physics.add.group();
-            this.enemies = this.physics.add.group();
-            this.enemyMissiles = this.physics.add.group();
-            
-            // 충돌 설정
-            this.setupCollisions();
-            
-            // UI 요소 생성
-            this.createUI();
-            
-            // 카메라 설정
-            this.cameras.main.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
-            this.cameras.main.startFollow(this.player, true, 0.5, 0.5);
-            
-            // 타이머 설정
-            this.gameTimer = this.time.addEvent({
-                delay: 1000,
-                callback: this.updateTimer,
-                callbackScope: this,
-                loop: true
-            });
-            
-            // 적 생성 타이머
-            this.enemyTimer = this.time.addEvent({
-                delay: 1000,
-                callback: this.spawnEnemy,
-                callbackScope: this,
-                loop: true
-            });
-            
-            // 미사일 자동 발사 타이머
-            this.missileTimer = this.time.addEvent({
-                delay: 1000,
-                callback: this.fireMissile,
-                callbackScope: this,
-                loop: true
-            });
-            
-            // 키보드 컨트롤 설정
-            this.cursors = this.input.keyboard.createCursorKeys();
-            this.wasdKeys = this.input.keyboard.addKeys({
-                up: Phaser.Input.Keyboard.KeyCodes.W,
-                down: Phaser.Input.Keyboard.KeyCodes.S,
-                left: Phaser.Input.Keyboard.KeyCodes.A,
-                right: Phaser.Input.Keyboard.KeyCodes.D
-            });
-        };
-
-        GameScene.prototype.createMapGrid = function() {
-            // 맵 격자 그리기
-            const graphics = this.add.graphics();
-            graphics.lineStyle(1, 0x333333, 1);
-            
-            // 세로 선
-            for (let x = 0; x < MAP_WIDTH; x += 200) {
-                graphics.moveTo(x, 0);
-                graphics.lineTo(x, MAP_HEIGHT);
-            }
-            
-            // 가로 선
-            for (let y = 0; y < MAP_HEIGHT; y += 200) {
-                graphics.moveTo(0, y);
-                graphics.lineTo(MAP_WIDTH, y);
-            }
-            
-            graphics.strokePath();
-            
-            // 맵 경계
-            graphics.lineStyle(2, 0xff0000, 1);
-            graphics.strokeRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
-        };
-
-        GameScene.prototype.createObstacles = function() {
-            // 장애물 그룹 생성
-            this.obstacles = this.physics.add.staticGroup();
-            
-            // 맵 구역 구분 (3x3 그리드)
-            const gridWidth = MAP_WIDTH / 3;
-            const gridHeight = MAP_HEIGHT / 3;
-            
-            // 각 구역에 장애물 배치 (중앙 구역 제외)
-            for (let i = 0; i < 3; i++) {
-                for (let j = 0; j < 3; j++) {
-                    // 중앙 구역 제외
-                    if (i === 1 && j === 1) continue;
-                    
-                    const sectionX = i * gridWidth;
-                    const sectionY = j * gridHeight;
-                    
-                    // 각 구역에 3~6개의 장애물 배치
-                    const obstacleCount = Phaser.Math.Between(3, 6);
-                    
-                    for (let k = 0; k < obstacleCount; k++) {
-                        // 장애물 크기
-                        const width = Phaser.Math.Between(50, 150);
-                        const height = Phaser.Math.Between(50, 150);
-                        
-                        // 장애물 위치 (구역 내에서)
-                        const x = sectionX + Phaser.Math.Between(0, gridWidth - width);
-                        const y = sectionY + Phaser.Math.Between(0, gridHeight - height);
-                        
-                        // 장애물 타입
-                        const type = Math.random() < 0.5 ? 'crate' : 'building';
-                        
-                        this.createObstacle(x, y, width, height, type);
-                    }
+            createEnemyInfo(x, y, name, color, extraInfo = '') {
+                // 적 정보 표시 (이미지 대신 도형 사용)
+                const graphics = this.add.graphics();
+                graphics.fillStyle(0x222222, 1);
+                graphics.fillRect(x - 60, y - 60, 120, 120);
+                graphics.lineStyle(2, 0x666666, 1);
+                graphics.strokeRect(x - 60, y - 60, 120, 120);
+                
+                // 적 표현 (간단한 형태)
+                graphics.fillStyle(color, 1);
+                graphics.fillRect(x - 25, y - 10, 50, 50);
+                graphics.fillCircle(x, y - 25, 25);
+                
+                // 특별한 경우 추가적인 디테일
+                if (name === 'Fast Zombie') {
+                    graphics.fillStyle(color, 0.3);
+                    graphics.fillRect(x - 40, y, 25, 10);
+                } else if (name === 'Shooter Zombie') {
+                    graphics.fillStyle(0x333333, 1);
+                    graphics.fillRect(x + 25, y, 20, 5);
+                } else if (name === 'Giant Zombie') {
+                    graphics.fillStyle(color, 1);
+                    graphics.fillRect(x - 40, y, 15, 15);
+                    graphics.fillRect(x + 25, y, 15, 15);
+                }
+                
+                // 적 이름
+                this.add.text(x, y + 75, name, { 
+                    fontFamily: 'Arial', 
+                    fontSize: 16, 
+                    color: '#ffffff' 
+                }).setOrigin(0.5);
+                
+                // 추가 정보가 있다면 표시
+                if (extraInfo) {
+                    this.add.text(x, y - 40, extraInfo, { 
+                        fontFamily: 'Arial', 
+                        fontSize: 12, 
+                        color: '#ffffff' 
+                    }).setOrigin(0.5);
                 }
             }
-            
-            // 맵 중앙에 십자형 구조물 추가
-            // 가로 바
-            this.createObstacle(MAP_WIDTH / 2 - 600, MAP_HEIGHT / 2 - 50, 1200, 100, 'building');
-            // 세로 바
-            this.createObstacle(MAP_WIDTH / 2 - 50, MAP_HEIGHT / 2 - 600, 100, 1200, 'building');
-            
-            // 중앙 스폰 지역은 비워두기
-            const centerZoneObjects = this.obstacles.getChildren().filter(obstacle => {
+        }
+
+        // 게임 씬
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'GameScene' });
+                
+                // 게임 상태 변수
+                this.timeLeft = 60;
+                this.enemySpawned = false;
+                this.lastMissileTime = 0;
+                this.gameActive = true;
+                this.player = null;
+                this.missiles = null;
+                this.enemies = null;
+                this.enemyMissiles = null;
+                this.obstacles = null;
+                this.timerText = null;
+                this.stageText = null;
+                this.heartsText = null;
+            }
+
+            preload() {
+                // 게임에 필요한 리소스 로드
+            }
+
+            create() {
+                // 맵 크기 설정
+                this.physics.world.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
+                
+                // 배경 생성
+                this.add.rectangle(0, 0, MAP_WIDTH, MAP_HEIGHT, 0x111111).setOrigin(0);
+                
+                // 맵 격자 그리기
+                this.createMapGrid();
+                
+                // 장애물 생성
+                this.createObstacles();
+                
+                // 플레이어 생성
+                this.createPlayer();
+                
+                // 미사일, 적, 적 미사일 그룹 생성
+                this.missiles = this.physics.add.group();
+                this.enemies = this.physics.add.group();
+                this.enemyMissiles = this.physics.add.group();
+                
+                // 충돌 설정
+                this.setupCollisions();
+                
+                // UI 요소 생성
+                this.createUI();
+                
+                // 카메라 설정
+                this.cameras.main.setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT);
+                this.cameras.main.startFollow(this.player, true, 0.5, 0.5);
+                
+                // 타이머 설정
+                this.gameTimer = this.time.addEvent({
+                    delay: 1000,
+                    callback: this.updateTimer,
+                    callbackScope: this,
+                    loop: true
+                });
+                
+                // 적 생성 타이머
+                this.enemyTimer = this.time.addEvent({
+                    delay: 1000,
+                    callback: this.spawnEnemy,
+                    callbackScope: this,
+                    loop: true
+                });
+                
+                // 미사일 자동 발사 타이머
+                this.missileTimer = this.time.addEvent({
+                    delay: 1000,
+                    callback: this.fireMissile,
+                    callbackScope: this,
+                    loop: true
+                });
+                
+                // 키보드 컨트롤 설정
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.wasdKeys = this.input.keyboard.addKeys({
+                    up: Phaser.Input.Keyboard.KeyCodes.W,
+                    down: Phaser.Input.Keyboard.KeyCodes.S,
+                    left: Phaser.Input.Keyboard.KeyCodes.A,
+                    right: Phaser.Input.Keyboard.KeyCodes.D
+                });
+            }
+
+            createMapGrid() {
+                // 맵 격자 그리기
+                const graphics = this.add.graphics();
+                graphics.lineStyle(1, 0x333333, 1);
+                
+                // 세로 선
+                for (let x = 0; x < MAP_WIDTH; x += 200) {
+                    graphics.moveTo(x, 0);
+                    graphics.lineTo(x, MAP_HEIGHT);
+                }
+                
+                // 가로 선
+                for (let y = 0; y < MAP_HEIGHT; y += 200) {
+                    graphics.moveTo(0, y);
+                    graphics.lineTo(MAP_WIDTH, y);
+                }
+                
+                graphics.strokePath();
+                
+                // 맵 경계
+                graphics.lineStyle(2, 0xff0000, 1);
+                graphics.strokeRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+            }
+
+            createObstacles() {
+                // 장애물 그룹 생성
+                this.obstacles = this.physics.add.staticGroup();
+                
+                // 맵 구역 구분 (3x3 그리드)
+                const gridWidth = MAP_WIDTH / 3;
+                const gridHeight = MAP_HEIGHT / 3;
+                
+                // 각 구역에 장애물 배치 (중앙 구역 제외)
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        // 중앙 구역 제외
+                        if (i === 1 && j === 1) continue;
+                        
+                        const sectionX = i * gridWidth;
+                        const sectionY = j * gridHeight;
+                        
+                        // 각 구역에 3~6개의 장애물 배치
+                        const obstacleCount = Phaser.Math.Between(3, 6);
+                        
+                        for (let k = 0; k < obstacleCount; k++) {
+                            // 장애물 크기
+                            const width = Phaser.Math.Between(50, 150);
+                            const height = Phaser.Math.Between(50, 150);
+                            
+                            // 장애물 위치 (구역 내에서)
+                            const x = sectionX + Phaser.Math.Between(0, gridWidth - width);
+                            const y = sectionY + Phaser.Math.Between(0, gridHeight - height);
+                            
+                            // 장애물 타입
+                            const type = Math.random() < 0.5 ? 'crate' : 'building';
+                            
+                            this.createObstacle(x, y, width, height, type);
+                        }
+                    }
+                }
+                
+                // 맵 중앙에 십자형 구조물 추가
+                // 가로 바
+                this.createObstacle(MAP_WIDTH / 2 - 600, MAP_HEIGHT / 2 - 50, 1200, 100, 'building');
+                // 세로 바
+                this.createObstacle(MAP_WIDTH / 2 - 50, MAP_HEIGHT / 2 - 600, 100, 1200, 'building');
+                
+                // 중앙 스폰 지역은 비워두기
                 const centerZoneSize = 200;
                 const centerX = MAP_WIDTH / 2 - centerZoneSize / 2;
                 const centerY = MAP_HEIGHT / 2 - centerZoneSize / 2;
                 
-                return (obstacle.x < centerX + centerZoneSize &&
-                        obstacle.x + obstacle.width > centerX &&
-                        obstacle.y < centerY + centerZoneSize &&
-                        obstacle.y + obstacle.height > centerY);
-            });
-            
-            // 중앙 영역에 있는 장애물 제거
-            centerZoneObjects.forEach(obj => obj.destroy());
-        };
-
-        GameScene.prototype.createObstacle = function(x, y, width, height, type) {
-            let obstacle;
-            
-            if (type === 'crate') {
-                // 나무 상자 스타일
-                const crateColor = 0x8B4513; // 갈색
-                obstacle = this.add.rectangle(x + width/2, y + height/2, width, height, crateColor);
-                
-                // 시각적 효과 (실제 충돌에는 영향 없음)
-                const detailGraphics = this.add.graphics();
-                detailGraphics.lineStyle(2, 0x5D2906, 1);
-                detailGraphics.strokeRect(x + 5, y + 5, width - 10, height - 10);
-                
-                // 못 표시
-                detailGraphics.fillStyle(0x444444, 1);
-                detailGraphics.fillRect(x + 10, y + 10, 4, 4);
-                detailGraphics.fillRect(x + width - 14, y + 10, 4, 4);
-                detailGraphics.fillRect(x + 10, y + height - 14, 4, 4);
-                detailGraphics.fillRect(x + width - 14, y + height - 14, 4, 4);
-            } else {
-                // 폐건물 스타일
-                const buildingColor = 0x555555; // 회색
-                obstacle = this.add.rectangle(x + width/2, y + height/2, width, height, buildingColor);
-                
-                // 시각적 효과
-                const detailGraphics = this.add.graphics();
-                
-                // 부서진 벽 표현
-                detailGraphics.fillStyle(0x333333, 1);
-                detailGraphics.fillTriangle(
-                    x, y,
-                    x + 30, y + 15,
-                    x + 60, y
-                );
-                
-                // 창문 표현
-                detailGraphics.fillStyle(0x222222, 1);
-                const windowWidth = width / 4;
-                const windowHeight = height / 3;
-                detailGraphics.fillRect(
-                    x + width / 4,
-                    y + height / 4,
-                    windowWidth,
-                    windowHeight
-                );
+                this.obstacles.getChildren().forEach(obstacle => {
+                    const bounds = obstacle.getBounds();
+                    
+                    // 중앙 영역과 겹치는지 확인
+                    if (bounds.x < centerX + centerZoneSize &&
+                        bounds.x + bounds.width > centerX &&
+                        bounds.y < centerY + centerZoneSize &&
+                        bounds.y + bounds.height > centerY) {
+                        obstacle.destroy();
+                    }
+                });
             }
-            
-            // 물리 바디 추가
-            this.physics.world.enable(obstacle, Phaser.Physics.Arcade.STATIC_BODY);
-            obstacle.body.setSize(width, height);
-            
-            // 충돌 속성 추가
-            obstacle.width = width;
-            obstacle.height = height;
-            obstacle.type = type;
-            
-            // 장애물 그룹에 추가
-            this.obstacles.add(obstacle);
-            
-            return obstacle;
-        };
 
-        GameScene.prototype.createPlayer = function() {
-            // 플레이어 생성
-            this.player = this.physics.add.sprite(MAP_WIDTH / 2, MAP_HEIGHT / 2, 'player');
-            
-            // 플레이어 이미지가 없으므로 도형으로 표현
-            const playerGraphics = this.add.graphics();
-            playerGraphics.fillStyle(0x0000ff, 1);
-            playerGraphics.fillRect(-15, -15, 30, 30);
-            playerGraphics.fillCircle(0, 0, 15);
-            
-            // 텍스처 생성
-            playerGraphics.generateTexture('player', 30, 30);
-            playerGraphics.clear();
-            
-            // 플레이어 설정
-            this.player.setCollideWorldBounds(true);
-            this.player.setSize(30, 30);
-            this.player.hearts = playerHearts;
-            this.player.invincible = false;
-            this.player.invincibleTime = 0;
-            
-            // 깜빡임 효과를 위한 타이머
-            this.player.blinkTimer = null;
-        };
-
-        GameScene.prototype.createUI = function() {
-            // UI 요소 생성 (카메라에 고정)
-            this.stageText = this.add.text(10, 10, `STAGE ${currentStage}`, { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff' 
-            }).setScrollFactor(0);
-            
-            this.timerText = this.add.text(1190, 10, this.timeLeft.toString(), { 
-                fontFamily: 'Arial', 
-                fontSize: 24, 
-                color: '#ffffff' 
-            }).setScrollFactor(0).setOrigin(1, 0);
-            
-            this.heartsText = this.add.text(600, 10, '❤️'.repeat(this.player.hearts), { 
-                fontFamily: 'Arial', 
-                fontSize: 30, 
-                color: '#ffffff' 
-            }).setScrollFactor(0).setOrigin(0.5, 0);
-            
-            // 디버그 정보
-            this.debugText = this.add.text(10, 870, '', { 
-                fontFamily: 'Arial', 
-                fontSize: 12, 
-                color: '#ffffff' 
-            }).setScrollFactor(0);
-        };
-
-        GameScene.prototype.setupCollisions = function() {
-            // 플레이어와 장애물 충돌
-            this.physics.add.collider(this.player, this.obstacles);
-            
-            // 미사일과 장애물 충돌
-            this.physics.add.collider(this.missiles, this.obstacles, (missile, obstacle) => {
-                missile.destroy();
-            });
-            
-            // 적 미사일과 장애물 충돌
-            this.physics.add.collider(this.enemyMissiles, this.obstacles, (missile, obstacle) => {
-                missile.destroy();
-            });
-            
-            // 미사일과 적 충돌
-            this.physics.add.collider(this.missiles, this.enemies, (missile, enemy) => {
-                missile.destroy();
+            createObstacle(x, y, width, height, type) {
+                let obstacle;
                 
-                // 적 체력 감소
-                enemy.health -= 1;
-                
-                // 체력이 0이하면 제거
-                if (enemy.health <= 0) {
-                    enemy.destroy();
+                if (type === 'crate') {
+                    // 나무 상자 스타일
+                    const crateColor = 0x8B4513; // 갈색
+                    obstacle = this.add.rectangle(x + width/2, y + height/2, width, height, crateColor);
+                    
+                    // 시각적 효과 (실제 충돌에는 영향 없음)
+                    const detailGraphics = this.add.graphics();
+                    detailGraphics.lineStyle(2, 0x5D2906, 1);
+                    detailGraphics.strokeRect(x + 5, y + 5, width - 10, height - 10);
+                    
+                    // 못 표시
+                    detailGraphics.fillStyle(0x444444, 1);
+                    detailGraphics.fillRect(x + 10, y + 10, 4, 4);
+                    detailGraphics.fillRect(x + width - 14, y + 10, 4, 4);
+                    detailGraphics.fillRect(x + 10, y + height - 14, 4, 4);
+                    detailGraphics.fillRect(x + width - 14, y + height - 14, 4, 4);
+                } else {
+                    // 폐건물 스타일
+                    const buildingColor = 0x555555; // 회색
+                    obstacle = this.add.rectangle(x + width/2, y + height/2, width, height, buildingColor);
+                    
+                    // 시각적 효과
+                    const detailGraphics = this.add.graphics();
+                    
+                    // 부서진 벽 표현
+                    detailGraphics.fillStyle(0x333333, 1);
+                    detailGraphics.fillTriangle(
+                        x, y,
+                        x + 30, y + 15,
+                        x + 60, y
+                    );
+                    
+                    // 창문 표현
+                    detailGraphics.fillStyle(0x222222, 1);
+                    const windowWidth = width / 4;
+                    const windowHeight = height / 3;
+                    detailGraphics.fillRect(
+                        x + width / 4,
+                        y + height / 4,
+                        windowWidth,
+                        windowHeight
+                    );
                 }
-            });
-            
-            // 적 미사일과 플레이어 충돌
-            this.physics.add.collider(this.enemyMissiles, this.player, (player, missile) => {
-                missile.destroy();
-                this.playerTakeDamage();
-            });
-            
-            // 적과 플레이어 충돌
-            this.physics.add.collider(this.enemies, this.player, (player, enemy) => {
-                this.playerTakeDamage();
-            });
-        };
+                
+                // 물리 바디 추가
+                this.physics.world.enable(obstacle, Phaser.Physics.Arcade.STATIC_BODY);
+                obstacle.body.setSize(width, height);
+                
+                // 장애물 그룹에 추가
+                this.obstacles.add(obstacle);
+                
+                return obstacle;
+            }
 
-        GameScene.prototype.update = function(time, delta) {
-            if (!this.gameActive) return;
-            
-            // 플레이어 이동 처리
-            this.updatePlayerMovement();
-            
-            // 적 업데이트
-            this.updateEnemies();
-            
-            // 디버그 정보 갱신
-            this.updateDebugInfo();
-            
-            // 플레이어 무적 상태 관리
-            this.updatePlayerInvincibility(time);
-        };
+            createPlayer() {
+                // 플레이어 스프라이트 텍스처 생성
+                if (!this.textures.exists('player')) {
+                    const graphics = this.add.graphics();
+                    graphics.fillStyle(0x0000ff, 1);
+                    graphics.fillRect(-15, -15, 30, 30);
+                    graphics.fillCircle(0, 0, 15);
+                    
+                    // 텍스처 생성
+                    graphics.generateTexture('player', 30, 30);
+                    graphics.clear();
+                }
+                
+                // 플레이어 생성
+                this.player = this.physics.add.sprite(MAP_WIDTH / 2, MAP_HEIGHT / 2, 'player');
+                
+                // 플레이어 설정
+                this.player.setCollideWorldBounds(true);
+                this.player.hearts = playerHearts;
+                this.player.invincible = false;
+                this.player.invincibleTime = 0;
+                
+                // 깜빡임 효과를 위한 타이머
+                this.player.blinkTimer = null;
+            }
 
-        GameScene.prototype.updatePlayerMovement = function() {
-            // 플레이어 이동 속도
-            const speed = 5;
-            
-            // 이동 방향 초기화
-            let directionX = 0;
-            let directionY = 0;
-            
-            // WASD 또는 화살표 키 입력 확인
-            if (this.cursors.up.isDown || this.wasdKeys.up.isDown) {
-                directionY = -1;
-            } else if (this.cursors.down.isDown || this.wasdKeys.down.isDown) {
-                directionY = 1;
+            createUI() {
+                // UI 요소 생성 (카메라에 고정)
+                this.stageText = this.add.text(10, 10, `STAGE ${currentStage}`, { 
+                    fontFamily: 'Arial', 
+                    fontSize: 24, 
+                    color: '#ffffff' 
+                }).setScrollFactor(0);
+                
+                this.timerText = this.add.text(1190, 10, this.timeLeft.toString(), { 
+                    fontFamily: 'Arial', 
+                    fontSize: 24, 
+                    color: '#ffffff' 
+                }).setScrollFactor(0).setOrigin(1, 0);
+                
+                this.heartsText = this.add.text(600, 10, '❤️'.repeat(this.player.hearts), { 
+                    fontFamily: 'Arial', 
+                    fontSize: 30, 
+                    color: '#ffffff' 
+                }).setScrollFactor(0).setOrigin(0.5, 0);
+                
+                // 디버그 정보
+                this.debugText = this.add.text(10, 870, '', { 
+                    fontFamily: 'Arial', 
+                    fontSize: 12, 
+                    color: '#ffffff' 
+                }).setScrollFactor(0);
             }
-            
-            if (this.cursors.left.isDown || this.wasdKeys.left.isDown) {
-                directionX = -1;
-            } else if (this.cursors.right.isDown || this.wasdKeys.right.isDown) {
-                directionX = 1;
-            }
-            
-            // 대각선 이동 시 속도 정규화
-            if (directionX !== 0 && directionY !== 0) {
-                directionX *= 0.7071; // 1/sqrt(2)
-                directionY *= 0.7071;
-            }
-            
-            // 이동 적용
-            this.player.setVelocity(directionX * speed * 60, directionY * speed * 60);
-        };
 
-        GameScene.prototype.updateTimer = function() {
-            this.timeLeft--;
-            this.timerText.setText(this.timeLeft.toString());
-            
-            if (this.timeLeft <= 0) {
-                // 스테이지 클리어
-                this.nextStage();
+            setupCollisions() {
+                // 플레이어와 장애물 충돌
+                this.physics.add.collider(this.player, this.obstacles);
+                
+                // 미사일과 장애물 충돌
+                this.physics.add.collider(this.missiles, this.obstacles, (missile, obstacle) => {
+                    missile.destroy();
+                });
+                
+                // 적 미사일과 장애물 충돌
+                this.physics.add.collider(this.enemyMissiles, this.obstacles, (missile, obstacle) => {
+                    missile.destroy();
+                });
+                
+                // 미사일과 적 충돌
+                this.physics.add.collider(this.missiles, this.enemies, (missile, enemy) => {
+                    missile.destroy();
+                    
+                    // 적 체력 감소
+                    enemy.health -= 1;
+                    
+                    // 체력이 0이하면 제거
+                    if (enemy.health <= 0) {
+                        enemy.destroy();
+                    }
+                });
+                
+                // 적 미사일과 플레이어 충돌
+                this.physics.add.collider(this.enemyMissiles, this.player, (player, missile) => {
+                    missile.destroy();
+                    this.playerTakeDamage();
+                });
+                
+                // 적과 플레이어 충돌
+                this.physics.add.collider(this.enemies, this.player, (player, enemy) => {
+                    this.playerTakeDamage();
+                });
             }
-        };
 
-        GameScene.prototype.spawnEnemy = function() {
-            if (!this.enemySpawned) {
-                // 최초 1마리만 생성
-                this.createEnemy();
-                this.enemySpawned = true;
-            } else {
-                // 이후 지속 생성
-                this.createEnemy();
+            updateTimer() {
+                this.timeLeft--;
+                this.timerText.setText(this.timeLeft.toString());
+                
+                if (this.timeLeft <= 0) {
+                    // 스테이지 클리어
+                    this.nextStage();
+                }
             }
-        };
 
-        GameScene.prototype.createEnemy = function() {
-            // 무작위 적 유형 결정
-            const randomValue = Math.random();
-            let enemyType;
-            
-            if (randomValue < 0.75) {
-                // 75% 확률: 기본 좀비
-                enemyType = 'basic';
-            } else if (randomValue < 0.85) {
-                // 10% 확률: 빠른 좀비
-                enemyType = 'fast';
-            } else if (randomValue < 0.95) {
-                // 10% 확률: 미사일 발사 좀비
-                enemyType = 'shooter';
-            } else {
-                // 5% 확률: 거대 좀비
-                enemyType = 'giant';
+            updatePlayerMovement() {
+                // 플레이어 이동 속도
+                const speed = 300;
+                
+                // 이동 방향 초기화
+                let directionX = 0;
+                let directionY = 0;
+                
+                // WASD 또는 화살표 키 입력 확인
+                if (this.cursors.up.isDown || this.wasdKeys.up.isDown) {
+                    directionY = -1;
+                } else if (this.cursors.down.isDown || this.wasdKeys.down.isDown) {
+                    directionY = 1;
+                }
+                
+                if (this.cursors.left.isDown || this.wasdKeys.left.isDown) {
+                    directionX = -1;
+                } else if (this.cursors.right.isDown || this.wasdKeys.right.isDown) {
+                    directionX = 1;
+                }
+                
+                // 대각선 이동 시 속도 정규화
+                if (directionX !== 0 && directionY !== 0) {
+                    directionX *= 0.7071; // 1/sqrt(2)
+                    directionY *= 0.7071;
+                }
+                
+                // 이동 적용
+                this.player.setVelocity(directionX * speed, directionY * speed);
             }
-            
-            // 맵 가장자리에서 스폰 위치 결정
-            let x, y;
-            const side = Math.floor(Math.random() * 4); // 0: 위, 1: 오른쪽, 2: 아래, 3: 왼쪽
-            
-            switch (side) {
-                case 0: // 위
-                    x = Phaser.Math.Between(0, MAP_WIDTH);
-                    y = -30;
-                    break;
-                case 1: // 오른쪽
-                    x = MAP_WIDTH + 30;
-                    y = Phaser.Math.Between(0, MAP_HEIGHT);
-                    break;
-                case 2: // 아래
-                    x = Phaser.Math.Between(0, MAP_WIDTH);
-                    y = MAP_HEIGHT + 30;
-                    break;
-                case 3: // 왼쪽
-                    x = -30;
-                    y = Phaser.Math.Between(0, MAP_HEIGHT);
-                    break;
+
+            updateEnemies() {
+                // 모든 적 업데이트
+                this.enemies.getChildren().forEach(enemy => {
+                    // 플레이어 방향 계산
+                    const dx = this.player.x - enemy.x;
+                    const dy = this.player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // 이동 방향 정규화
+                    let dirX = dx / distance;
+                    let dirY = dy / distance;
+                    
+                    // 경로 탐색 관련 처리 (장애물 회피 등)
+                    if (enemy.pathFinding) {
+                        // 간단한 경로 탐색 (정교한 알고리즘은 구현 복잡성 때문에 생략)
+                        // 랜덤 방향 조정으로 대체
+                        const hasObstacleAhead = Math.random() < 0.1; // 10% 확률로 장애물 회피 경로 선택
+                        
+                        if (hasObstacleAhead) {
+                            // 방향 약간 변경
+                            dirX += (Math.random() * 0.4) - 0.2;
+                            dirY += (Math.random() * 0.4) - 0.2;
+                            
+                            // 방향 다시 정규화
+                            const newDist = Math.sqrt(dirX * dirX + dirY * dirY);
+                            if (newDist > 0) {
+                                dirX /= newDist;
+                                dirY /= newDist;
+                            }
+                        }
+                    }
+                    
+                    // 속도 적용
+                    enemy.setVelocity(dirX * enemy.speed * 60, dirY * enemy.speed * 60);
+                    
+                    // Shooter 유형 적은 미사일 발사
+                    if (enemy.type === 'shooter') {
+                        const currentTime = this.time.now;
+                        if (currentTime - (enemy.lastShotTime || 0) > 3000) {
+                            // 플레이어와의 거리가 800 이내일 때만 발사
+                            if (distance < 800) {
+                                this.fireEnemyMissile(enemy);
+                                enemy.lastShotTime = currentTime;
+                            }
+                        }
+                    }
+                });
             }
-            
-            // 적 생성
-            let enemy;
-            let size = 30;
-            let color = 0xff0000;
-            let health = 1;
-            let speed = 0.7;
-            
-            switch (enemyType) {
-                case 'fast':
-                    color = 0xff9900;
-                    size = 25;
-                    speed = 1.4;
-                    break;
-                case 'shooter':
-                    color = 0xcc00cc;
-                    speed = 0.5;
-                    enemy = this.createEnemySprite(x, y, size, color);
+
+            fireMissile() {
+                // 미사일 텍스처가 없으면 생성
+                if (!this.textures.exists('missile')) {
+                    const graphics = this.add.graphics();
+                    graphics.fillStyle(0xffff00, 1);
+                    graphics.fillCircle(0, 0, 5);
+                    graphics.generateTexture('missile', 10, 10);
+                    graphics.clear();
+                }
+                
+                // 플레이어 위치에서 미사일 발사
+                const missile = this.physics.add.sprite(this.player.x, this.player.y, 'missile');
+                
+                // 미사일 설정
+                missile.setCircle(5);
+                
+                // 미사일 속도 7
+                const missileSpeed = 420; // 7 * 60
+                
+                // 70% 확률로 적을 추적하는 미사일
+                if (Math.random() < 0.7 && this.enemies.getChildren().length > 0) {
+                    // 가장 가까운 적 찾기
+                    let closestEnemy = null;
+                    let closestDistance = Infinity;
+                    
+                    this.enemies.getChildren().forEach(enemy => {
+                        const dx = enemy.x - this.player.x;
+                        const dy = enemy.y - this.player.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < closestDistance) {
+                            closestDistance = distance;
+                            closestEnemy = enemy;
+                        }
+                    });
+                    
+                    // 추적 대상이 있으면 해당 방향으로 발사
+                    if (closestEnemy) {
+                        // 타겟 방향 계산
+                        const dx = closestEnemy.x - this.player.x;
+                        const dy = closestEnemy.y - this.player.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance > 0) {
+                            // 방향 정규화해서 속도 적용
+                            missile.setVelocity((dx / distance) * missileSpeed, (dy / distance) * missileSpeed);
+                            
+                            // 추적 대상 설정 (업데이트에서 사용)
+                            missile.target = closestEnemy;
+                            missile.isTracking = true;
+                        }
+                    } else {
+                        // 대상이 없으면 랜덤 방향
+                        const angle = Math.random() * Math.PI * 2;
+                        missile.setVelocity(Math.cos(angle) * missileSpeed, Math.sin(angle) * missileSpeed);
+                    }
+                } else {
+                    // 랜덤 방향 발사
+                    const angle = Math.random() * Math.PI * 2;
+                    missile.setVelocity(Math.cos(angle) * missileSpeed, Math.sin(angle) * missileSpeed);
+                }
+                
+                // 미사일 그룹에 추가
+                this.missiles.add(missile);
+                
+                // 5초 후 자동 소멸
+                this.time.delayedCall(5000, () => {
+                    if (missile.active) {
+                        missile.destroy();
+                    }
+                });
+            }
+
+            fireEnemyMissile(enemy) {
+                // 적 미사일 텍스처가 없으면 생성
+                if (!this.textures.exists('enemyMissile')) {
+                    const graphics = this.add.graphics();
+                    graphics.fillStyle(0xff3300, 1);
+                    graphics.fillCircle(0, 0, 5);
+                    graphics.generateTexture('enemyMissile', 10, 10);
+                    graphics.clear();
+                }
+                
+                // 적 위치에서 미사일 발사
+                const missile = this.physics.add.sprite(enemy.x, enemy.y, 'enemyMissile');
+                
+                // 미사일 설정
+                missile.setCircle(5);
+                
+                // 미사일 속도 7
+                const missileSpeed = 420; // 7 * 60
+                
+                // 플레이어 방향으로 발사
+                const dx = this.player.x - enemy.x;
+                const dy = this.player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0) {
+                    missile.setVelocity((dx / distance) * missileSpeed, (dy / distance) * missileSpeed);
+                }
+                
+                // 적 미사일 그룹에 추가
+                this.enemyMissiles.add(missile);
+                
+                // 5초 후 자동 소멸
+                this.time.delayedCall(5000, () => {
+                    if (missile.active) {
+                        missile.destroy();
+                    }
+                });
+            }
+
+            spawnEnemy() {
+                if (!this.enemySpawned) {
+                    // 최초 1마리만 생성
+                    this.createEnemy();
+                    this.enemySpawned = true;
+                } else {
+                    // 이후 지속 생성
+                    this.createEnemy();
+                }
+            }
+
+            createEnemy() {
+                // 무작위 적 유형 결정
+                const randomValue = Math.random();
+                let enemyType;
+                
+                if (randomValue < 0.75) {
+                    // 75% 확률: 기본 좀비
+                    enemyType = 'basic';
+                } else if (randomValue < 0.85) {
+                    // 10% 확률: 빠른 좀비
+                    enemyType = 'fast';
+                } else if (randomValue < 0.95) {
+                    // 10% 확률: 미사일 발사 좀비
+                    enemyType = 'shooter';
+                } else {
+                    // 5% 확률: 거대 좀비
+                    enemyType = 'giant';
+                }
+                
+                // 맵 가장자리에서 스폰 위치 결정
+                let x, y;
+                const side = Math.floor(Math.random() * 4); // 0: 위, 1: 오른쪽, 2: 아래, 3: 왼쪽
+                
+                switch (side) {
+                    case 0: // 위
+                        x = Phaser.Math.Between(0, MAP_WIDTH);
+                        y = -30;
+                        break;
+                    case 1: // 오른쪽
+                        x = MAP_WIDTH + 30;
+                        y = Phaser.Math.Between(0, MAP_HEIGHT);
+                        break;
+                    case 2: // 아래
+                        x = Phaser.Math.Between(0, MAP_WIDTH);
+                        y = MAP_HEIGHT + 30;
+                        break;
+                    case 3: // 왼쪽
+                        x = -30;
+                        y = Phaser.Math.Between(0, MAP_HEIGHT);
+                        break;
+                }
+                
+                // 적 생성
+                let enemy;
+                let size, color, health, speed;
+                
+                // 적 타입에 따른 속성 설정
+                switch (enemyType) {
+                    case 'fast':
+                        size = 25;
+                        color = 0xff9900;
+                        health = 1;
+                        speed = 84; // 1.4 * 60
+                        break;
+                    case 'shooter':
+                        size = 30;
+                        color = 0xcc00cc;
+                        health = 1;
+                        speed = 30; // 0.5 * 60
+                        break;
+                    case 'giant':
+                        size = 60;
+                        color = 0x880000;
+                        health = 3;
+                        speed = 24; // 0.4 * 60
+                        break;
+                    default: // 기본 좀비
+                        size = 30;
+                        color = 0xff0000;
+                        health = 1;
+                        speed = 42; // 0.7 * 60
+                }
+                
+                // 적 텍스처 키
+                const textureKey = `enemy_${enemyType}`;
+                
+                // 텍스처가 없으면 생성
+                if (!this.textures.exists(textureKey)) {
+                    const graphics = this.add.graphics();
+                    
+                    // 몸체
+                    graphics.fillStyle(color, 1);
+                    graphics.fillRect(-size/2, -size/2, size, size);
+                    
+                    // 머리
+                    graphics.fillCircle(0, 0, size/2);
+                    
+                    // 특별한 디테일
+                    if (enemyType === 'fast') {
+                        // 빠른 좀비는 잔상 효과
+                        graphics.fillStyle(color, 0.3);
+                        graphics.fillRect(-size/2 - 10, -size/4, size/2, size/4);
+                    } else if (enemyType === 'shooter') {
+                        // 슈터 좀비는 총 표현
+                        graphics.fillStyle(0x333333, 1);
+                        graphics.fillRect(size/2, 0, 15, 4);
+                    } else if (enemyType === 'giant') {
+                        // 거대 좀비는 팔 추가
+                        graphics.fillRect(-size/2 - 10, 0, 10, 10);
+                        graphics.fillRect(size/2, 0, 10, 10);
+                    }
+                    
+                    // 텍스처 생성
+                    graphics.generateTexture(textureKey, size + 20, size + 20);
+                    graphics.clear();
+                }
+                
+                // 적 스프라이트 생성
+                enemy = this.physics.add.sprite(x, y, textureKey);
+                
+                // 적 속성 설정
+                enemy.health = health;
+                enemy.type = enemyType;
+                enemy.speed = speed;
+                enemy.pathFinding = Math.random() < 0.7; // 70% 확률로 경로 탐색 활성화
+                enemy.setCircle(size/2);
+                
+                // 거대 좀비는 체력 표시
+                if (enemyType === 'giant') {
+                    const healthText = this.add.text(0, -size/2 - 15, `HP: ${health}`, {
+                        fontFamily: 'Arial',
+                        fontSize: '12px',
+                        color: '#ffffff'
+                    }).setOrigin(0.5);
+                    
+                    enemy.healthText = healthText;
+                    
+                    // 업데이트 이벤트 연결
+                    enemy.on('destroy', () => {
+                        if (healthText) healthText.destroy();
+                    });
+                    
+                    this.events.on('update', () => {
+                        if (enemy.active && healthText.active) {
+                            healthText.setPosition(enemy.x, enemy.y - size/2 - 15);
+                            healthText.setText(`HP: ${enemy.health}`);
+                        }
+                    });
+                }
+                
+                // 슈터 좀비는 발사 시간 속성 추가
+                if (enemyType === 'shooter') {
                     enemy.lastShotTime = 0;
-                    break;
-                case 'giant':
-                    color = 0x880000;
-                    size = 60;
-                    speed = 0.4;
-                    health = 3;
-                    break;
-                default: // 기본 좀비
-                    break;
+                }
+                
+                // 적 그룹에 추가
+                this.enemies.add(enemy);
+                
+                return enemy;
             }
-            
-            // 적 스프라이트 생성
-            enemy = this.createEnemySprite(x, y, size, color);
-            
-            // 적 속성 설정
-            enemy.health = health;
-            enemy.type = enemyType;
-            enemy.speed = speed;
-            enemy.pathFinding = Math.random() < 0.7; // 70% 확률로 경로 탐색 활성화
-            
-            // 적 그룹에 추가
-            this.enemies.add(enemy);
-            
-            return enemy;
-        };
 
-        GameScene.prototype.createEnemySprite = function(x, y, size, color) {
-            // 적 텍스처 키
-            const textureKey = `enemy_${color}_${size}`;
-            
-            // 텍스처가 없으면 생성
-            if (!this.textures.exists(textureKey)) {
-                const graphics = this.add.graphics();
+            playerTakeDamage() {
+                // 무적 상태면 데미지 없음
+                if (this.player.invincible) return;
                 
-                // 몸체
-                graphics.fillStyle(color, 1);
-                graphics.fillRect(-size/2, -size/2, size, size);
+                // 하트 감소
+                this.player.hearts--;
                 
-                // 머리
-                graphics.fillCircle(0, 0, size/2);
+                // 하트 디스플레이 업데이트
+                this.heartsText.setText('❤️'.repeat(this.player.hearts));
                 
-                // 텍스처 생성
-                graphics.generateTexture(textureKey, size, size);
-                graphics.clear();
+                // 플레이어 하트 개수 전역 변수에 저장
+                playerHearts = this.player.hearts;
+                
+                // 하트가 0이면 게임 오버
+                if (this.player.hearts <= 0) {
+                    this.endGame(false);
+                    return;
+                }
+                
+                // 무적 상태 설정 (3초)
+                this.player.invincible = true;
+                this.player.invincibleTime = this.time.now + 3000;
+                
+                // 깜빡임 효과
+                if (this.player.blinkTimer) {
+                    this.player.blinkTimer.remove();
+                }
+                
+                this.player.blinkTimer = this.time.addEvent({
+                    delay: 100,
+                    callback: () => {
+                        this.player.visible = !this.player.visible;
+                    },
+                    loop: true
+                });
+                
+                // 무적 시간 종료 후 깜빡임 중지
+                this.time.delayedCall(3000, () => {
+                    if (this.player.blinkTimer) {
+                        this.player.blinkTimer.remove();
+                        this.player.blinkTimer = null;
+                    }
+                    this.player.visible = true;
+                    this.player.invincible = false;
+                });
             }
-            
-            // 적 스프라이트 생성
-            const enemy = this.physics.add.sprite(x, y, textureKey);
-            enemy.setCollideWorldBounds(true);
-            
-            return enemy;
-        };
 
-        Game
+            updateDebugInfo() {
+                // 디버그 정보 갱신
+                this.debugText.setText(
+                    `Player: ${Math.round(this.player.x)},${Math.round(this.player.y)} | ` +
+                    `Camera: ${Math.round(this.cameras.main.scrollX)},${Math.round(this.cameras.main.scrollY)} | ` +
+                    `Obstacles: ${this.obstacles.getLength()} | ` +
+                    `Enemies: ${this.enemies.getChildren().length} | ` +
+                    `Missiles: ${this.missiles.getChildren().length}`
+                );
+            }
+
+            nextStage() {
+                // 게임 타이머 중지
+                this.gameTimer.remove();
+                this.enemyTimer.remove();
+                this.missileTimer.remove();
+                
+                // 스테이지 증가
+                currentStage++;
+                
+                // 다음 스테이지 씬으로 전환
+                this.gameActive = false;
+                this.scene.start('StageScene');
+            }
+
+            endGame(survived = false) {
+                // 게임 타이머 중지
+                this.gameTimer.remove();
+                this.enemyTimer.remove();
+                this.missileTimer.remove();
+                
+                // 게임 오버 씬으로 전환 (생존 여부 전달)
+                this.gameActive = false;
+                this.scene.start('GameOverScene', { survived: survived });
+                
+                // 스테이지 초기화 (게임 오버시)
+                if (!survived) {
+                    currentStage = 1;
+                    playerHearts = 3;
+                }
+            }
+
+            update(time, delta) {
+                if (!this.gameActive) return;
+                
+                // 플레이어 이동 처리
+                this.updatePlayerMovement();
+                
+                // 적 업데이트
+                this.updateEnemies();
+                
+                // 디버그 정보 갱신
+                this.updateDebugInfo();
+            }
